@@ -67,7 +67,7 @@ enough fee, then miners will be incentivized to include it in a block.
 
 ##### Child Pays For Parent (CPFP) 
 
-The user creates  a new transaction which spends one or more of the outputs of
+The user creates a new transaction which spends one or more of the outputs of
 the stuck transaction. This child transaction attaches a large fee - enough to
 increase the combined fee-rate for itself and the stuck transaction above the
 required fee-rate for inclusion in a block. Note that this is only possible
@@ -79,7 +79,9 @@ entire package of ancestors and descendants. The miner is incentivized to do
 this to maximize the total fee yield from the block.
 
 This feature could rightly be called Descendants-Pay-For-Ancestors since the
-mining code considers packages of up to 25 transactions in any length of chain. 
+a rational miner will try to maximize their fee by considering packages of
+transactions greater than 2 deep. For example, the Bitcoin Core mining code
+considers packages of up to 25 transactions in any length of chain. 
 
 ## User experience considerations
 
@@ -177,21 +179,132 @@ TODO
 
 TODO
 
-# Introduction to CPFP
+# Child-Pays-For-Parent
 
-TODO
+Child Pays for Parent (CPFP) is a wallet feature where a user spends the output
+of an unconfirmed (_parent_) transaction as an input to a new (_child_)
+transaction. The wallet attaches enough fee to the child transaction to
+increase the combined feerate across the parent and child transactions.
 
-## Overview of how CPFP works
+## How does CPFP work?
 
-TODO
+When constructing a new block, miners are incentivized to fill the 1vMB with
+the set of transactions that maximize the transaction fees. If all unconfirmed
+transactions were independant, this would be a very straightforward operation -
+the miner would select the transaction with the highest feerate and add it to
+the candidate block. She'd then take the transaction with the next highest
+feerate and add it to the block. She'd continue to do this until the block was
+full. This trivially maximizes her profit from the block (with a little
+complication around the final few bytes of the block to ensure that she'd
+maximally filled the block).
 
-## History of CPFP (https://github.com/bitcoin/bitcoin/pull/7600)
+However, unconfirmed transactions _aren't_ independant. It is possible to have
+chains of unconfirmed transactions by spending the output from a transaction
+before it is included in a block. For example, if tx A has two outputs a1 and
+a2, transaction B could use one of those outputs as an input before A has
+been included in a block. In this case, if the miner wants to include
+transaction B in the block, she must also include transaction A, since without
+A, B is spending a non-existent output and is invalid.
 
-TODO
+If the miner considered transactions independently when constructing her block,
+she may forego transactions with very high fees if they depended on
+transactions with very low fees (or worse, she may construct an invalid block
+with a transaction that depends on an unincluded transaction). To maximize her
+profit, the miner should therefore consider transactions in _packages_ (sets of
+transactions with dependencies on each other) when constructing a new block.
 
-## Example of a company using CPFP
+Wallets can take advantage of this rational behavior by miners to incentivize
+them to include a stuck, low-fee transaction, by spending one of its outputs
+and increasing the total feerate across the transaction package.
 
-TODO
+## History of CPFP
+
+For users to be able to bump a transaction using CPFP, two elements are required:
+
+- a wallet that will spend the output of a stuck unconfirmed transaction in
+  order to bump the combined feerate.
+- The expectation that miners will maximize their profit by considering
+  packages of transactions.
+
+Before 2012 blocks were rarely full and so there was no fee market. The
+Bitcoin Core mining component was therefore not very optimized to maximize
+transaction fees when selecting transactions for block inclusion. Transactions were
+first ordered by 'prority' (the sum of the (value X coin age) for each
+transaction input, divided by the transaction size), with an [increasing
+feerate required][pre 0.7 tx selection] as the block filled up. Bitcoin Core
+[PR #1590][] changed the mining code to predominently sort transactions by
+feerate, with some space reserved for transactions with a high priority score.
+[Version 0.7.0][], released in September 2012 was therefore the first Bitcoin
+Core release to primarily order transactions by feerate.
+
+[pre 0.7 tx selection]: https://github.com/bitcoin/bitcoin/blob/9b8eb4d6907502e9b1e74b62a850a11655d50ab5/main.h#L586
+[PR #1590]: https://github.com/bitcoin/bitcoin/pull/1590
+[Version 0.7.0]: https://bitcoin.org/en/release/v0.7.0
+
+At around the same time, Luke-jr started maintaining [a patch][CPFP patch]
+which took into account the transaction fee of children transaction when
+sorting transactions for inclusion in a block. This patch was used by at least
+some miners, but was never merged into Bitcoin Core due to a lack of testing
+and benchmarking, and concerns that it could open a DOS vector against miners.
+
+[CPFP patch]: https://github.com/bitcoin/bitcoin/pull/1240
+
+The Bitcoin Core mining code was updated [in 2016][CPFP PR] to better account
+for packages of transactions. The mining code will consider packages of up to
+25 transactions or 101vkB. This change was included in [V0.13][].
+
+[CPFP PR]: https://github.com/bitcoin/bitcoin/pull/7600
+[V0.13]: https://bitcoincore.org/en/releases/0.13.0/#mining-transaction-selection-child-pays-for-parent
+
+At the time or writing (November 2018), it is almost certain that a majority of
+miners are running Bitcoin Core V0.13 or later, or a derivative thereof.
+Wallets can therefore safely assume that descendant transaction fees will be taken
+into account when miners construct blocks.
+
+## CPFP case study
+
+The Hodlers Bitcoin Exchange (HBE) has several hundred thousand customers and
+services thousands of withdrawals per day. Since they need to send many withdrawal
+payments in every block, they batch withdrawals into a single transaction every
+ten minutes.
+
+[//]: # (TODO: Include a link to batching chapter)
+
+HBE likes to keep fees low for their customers, so they set their transaction
+fee very economically - they prefer to pay just enough to get into a block, but
+no more! Occasionally, this means that the batch withdrawal transaction is not
+confirmed and gets stuck in the mempool. This leads to customers complaining
+about slow or stuck transactions.
+
+To improve the experience for their customrs, HBE implemented CPFP to bump the
+feerate on stuck batch withdrawal transactions. To do this, they use the change
+output from one batch withdrawal as the first input into the next withdrawal,
+and make sure to include enough fee on the second withdrawal to raise the
+average feerate across the two transactions. If that still doesn't bring the
+feerate up to a high enough level to be mined, they then use the change output
+from the second batch withdrawal as the input to a third batch withdrawal, and
+so on.
+
+There were a number of aspects that HBE needed to consider when implementing
+their CPFP system:
+
+- they need to ensure that every batch withdrawal includes a change output that
+  comes back to them. If there's no change output, then they can't construct a
+  child transaction to bump the fee of the parent transaction.
+- they needed to do careful testing around the fee rate logic. The child
+  transaction must pay for the parent transaction, so their algorithm needed to
+  take the weight of the parent transaction and the fee that had already been
+  paid into consideration when calculating the average fee rate. They needed to
+  do the same process when creating a 3rd or 4th generation transaction to pay
+  for its ancestors.
+- the Bitcoin Core mining algorithm will only consider packages of up to 25
+  transactions or 101vkB. HBE therefore needs to make sure they're not creating
+  chains of transactions larger than that.
+
+Overall, HBE is very happy with their new CPFP implementation. Support tickets
+are down, and customers are usually unaware that that their withdrawals are
+being fee bumped using CPFP, since the transaction id and output index of their
+withdrawal does not change.
 
 # RBF or CPFP (or both)
 
