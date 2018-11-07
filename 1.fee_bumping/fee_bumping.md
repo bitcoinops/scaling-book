@@ -367,6 +367,18 @@ TODO
 
 TODO
 
+# Conclusion
+
+Both Replace-By-Fee and Child-Pays-For-Parent are useful techniques for bumping
+the fee on a stuck unconfirmed transaction. Each comes with its own benefits
+and drawbacks, and depending on the situation it may be appropriate to use one
+or the other (or both together).
+
+Bitcoin engineers should be familiar with both techniques, and Bitcoin products
+and services should present a clear and accurate experience to users when those
+techniques are being used, even if they do not support creating RBF or CPFP
+transactions.
+
 # Footnotes
 
 ## Consensus, policy and incentive compatibility
