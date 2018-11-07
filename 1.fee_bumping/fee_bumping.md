@@ -169,6 +169,27 @@ TODO
 
 TODO
 
+## User Experience Recommendations
+
+Even wallets and services that do not themselves support creating opt-in RBF or
+replacement transactions should present a clear and accurate experience to
+their users when dealing with RBF transactions:
+
+- wallets that receive transactions that have opt-in RBF signalled may
+  display that the transaction is signaling opt-in RBF (with a tooltip
+  or pop-up box giving additional information about RBF).
+- wallets must not double account replaced transactions (ie count a debit
+  or credit twice if it appears in a replaced and replacement transaction).
+- wallets and block explorers should continue to show replaced transactions
+  after they have been replaced (either grayed out or hidden), with a clear
+  indiction that the transaction was replaced and is no longer valid.
+- wallets and block explorers should include information about the previous
+  transactions that a replacement transaction has replaced. For example, if
+  transaction A2 replaces A1, the page for A2 should include the information
+  that "this transaction replaced transaction A1".
+- Links to transactions that have been replaced should remain live on block
+  explorers. They may redirect to the transaction which replaced them.
+
 ## Interoperability & compatibility matrix
 
 TODO
@@ -192,6 +213,21 @@ TODO
 ## Example of a company using CPFP
 
 TODO
+
+## User Experience Recommendations
+
+Wallets and explorers should present relevant information about transaction
+packages to users:
+
+- if an unconfirmed transaction is part of a package of unconfirmed
+  transactions, the service should allow an expert user to view ancestor and
+  descendant feerate of the transaction alongside its feerate, to allow the
+  user to more accurately predict the package's chance of inclusion in future
+  blocks.
+- block explorers may display transactions as 'malleable' if any of their
+  inputs are non-segwit. Malleable transactions may not be safe to include in
+  chains of unconfirmed transactions, since malleating the signature invalidates
+  any descendant transactions.
 
 # RBF or CPFP (or both)
 
