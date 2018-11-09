@@ -132,8 +132,10 @@ Bitcoin blockchain, such as exchanges or custodians:
   additional fees can be significant.
 - Services that are very frequent spenders and broadcast transactions to the
   blockchain every block can chain together spends and use CPFP without any
-  additional overhead (the transaction in a block pays for itself and the prior
-  transaction).
+  additional overhead. If a transaction has not been confirmed by the time
+  they need to broadcast their next transaction, they can use the change output
+  from the first transaction in the second, and attach enough fee to bump the
+  feerate across the entire package.
 - Services that use
   [payment batching](https://en.bitcoin.it/wiki/Techniques_to_reduce_transaction_fees#Payment_batching)
   effectively can bump many payments with a single RBF or CPFP.
