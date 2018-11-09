@@ -188,15 +188,17 @@ increase the combined feerate across the parent and child transactions.
 
 ## How does CPFP work?
 
-When constructing a new block, miners are incentivized to fill the 1vMB with
-the set of transactions that maximize the transaction fees. If all unconfirmed
-transactions were independant, this would be a very straightforward operation -
-the miner would select the transaction with the highest feerate and add it to
-the candidate block. She'd then take the transaction with the next highest
-feerate and add it to the block. She'd continue to do this until the block was
-full. This trivially maximizes her profit from the block (with a little
-complication around the final few bytes of the block to ensure that she'd
-maximally filled the block).
+When constructing a new block, miners are incentivized to fill the 1vMB(see
+footnote on virtual bytes) with the set of transactions that maximize the
+transaction fees. If all unconfirmed transactions were independant, this would
+be a very straightforward operation - the miner would select the transaction
+with the highest feerate and add it to the candidate block. She'd then take the
+transaction with the next highest feerate and add it to the block. She'd
+continue to do this until the block was full. This trivially maximizes her
+profit from the block (with a little complication around the final few bytes of
+the block to ensure that she'd maximally filled the block).
+
+[//]: # (TODO: remove reference to footnote)
 
 However, unconfirmed transactions _aren't_ independant. It is possible to have
 chains of unconfirmed transactions by spending the output from a transaction
@@ -245,7 +247,7 @@ At around the same time, Luke-jr started maintaining [a patch][CPFP patch]
 which took into account the transaction fee of children transaction when
 sorting transactions for inclusion in a block. This patch was used by at least
 some miners, but was never merged into Bitcoin Core due to a lack of testing
-and benchmarking, and concerns that it could open a DOS vector against miners.
+and benchmarking, and concerns that it could open a DoS vector against miners.
 
 [CPFP patch]: https://github.com/bitcoin/bitcoin/pull/1240
 
@@ -276,7 +278,7 @@ no more! Occasionally, this means that the batch withdrawal transaction is not
 confirmed and gets stuck in the mempool. This leads to customers complaining
 about slow or stuck transactions.
 
-To improve the experience for their customrs, HBE implemented CPFP to bump the
+To improve the experience for their customers, HBE implemented CPFP to bump the
 feerate on stuck batch withdrawal transactions. To do this, they use the change
 output from one batch withdrawal as the first input into the next withdrawal,
 and make sure to include enough fee on the second withdrawal to raise the
@@ -327,7 +329,9 @@ TODO
 
 TODO
 
-# Footnote: consensus, policy and incentive compatibility
+# Footnotes
+
+## Consensus, policy and incentive compatibility
 
 Both solutions discussed in this article are related to network node and miner
 behavior before a transaction is included in a block. That behavior is
@@ -336,3 +340,26 @@ miner incentive-compatible - a miner who is trying to maximize his revenue will
 accept both RBF’ed transactions and CPFP packages. Individual nodes’ mempools
 (which should be a node’s best guess for what will be included in the next
 blocks) should therefore also accept RBF’ed transactions and CPFP packages.
+
+[//]: # (TODO: Move this explanation to a more appropriate place in the book)
+[//]: # (make sure to remote reference to this footnote when that happens)
+
+## Transaction weight and virtual bytes
+
+The consensus rule for block size is that the combined _weight_ of
+transactions must be less than 4,000,000. The weight of a single
+transaction is calculated as follows:
+
+- The _base size_ of a transaction is the number of bytes to serialize the
+  block without witness
+- The _size_ of a transaction is the number of bytes to serialize the block
+  with witness
+- The _weight_ is 3 x base size + size
+
+This formula means that the bytes in the witness are 'discounted' by a factor
+of 4. They count less towards the weight of the transaction than bytes in
+the base transaction.
+
+The _virtual size_ of a transaction is weight / 4 and is measured in _virtual bytes_
+or _vBytes_. For transactions without any segwit inputs, the base size, size and
+virtual size are all equal.
