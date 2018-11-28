@@ -153,25 +153,216 @@ Bitcoin blockchain, such as exchanges or custodians:
 
 These issues will be discussed in more detail in later sections of this document.
 
-# Introduction to RBF
+# Transaction replacement
 
-TODO
+The concept of being able to 'replace' an unconfirmed transaction has been
+around since the earliest days of Bitcoin. Early versions of the
+Bitcoin reference implementation [allowed transactions to be replaced][full_replacement] by
+constructing and broadcasting a replacement transaction with modified
+`nSequence` numbers in the transaction inputs.
 
-## Overview of what RBF is
+Satoshi understood the need for transaction fees to increase as the subsidy
+decreased, saying in the [whitepaper][] 'Once a predetermined number of coins
+have entered circulation, the incentive can transition entirely to transaction
+fees and be completely inflation free.' He also understood that users would
+need a way to be able to bump the fee on a transaction if it got stuck. There
+was [a question on the bitcointalk forum][bct q] in 2010:
 
-TODO
+> Just wondering about the following example :
+> I broadcast a transaction, sending X coins to some address.
+> Doesn't get included in blocks for a while because I don't include a fee.
+> 
+> Do I have a way to cancel it and broadcast it again with a fee this time ?
 
-## History of RBF
+Satoshi [replied][bct a]:
 
-TODO
+> There's a possible design for far in the future:
+> 
+> You intentionally write a double-spend.  You write it with the same inputs
+> and outputs, but this time with a fee.  When your double-spend gets into a
+> block, the first spend becomes invalid.  [...]
+> 
+> It's easier said than implemented.  There would be a fair amount of work[...]
+
+There are two main areas of difficulty that Satoshi is talking about: wallet
+design and UX, and node and miner policy.
+
+The wallet design and UX questions (how should a wallet track and display
+conflicting transactions? How should it present a user interface for bumping
+fee?) can be resolved by individual wallets and applications.
+
+The node and miner policy difficulties require some kind of shared
+understanding of how other nodes and miners on the network will behave. There
+are two major difficulties to consider:
+
+1. **DoS** - how do we prevent malicious actors from consuming node resources
+   by repeatedly broadcasting replacement transactions for zero cost?
+2. **Incentive alignment** - how do we make sure that replacement transactions
+   are incentive-compatible and miners want to mine them?
+
+Satoshi's first version of transaction replacement failed on both of these
+counts. The `nSequence` number could be incremented millions of times without
+changing the fee, wasting bandwidth and compute resources on all nodes in the
+network. The replacement logic also didn't require the replacement transaction
+to increase the fee, and could replace an old transaction with a new
+transaction even if the replacement had a lower fee. If a miner was running
+this software, the replacement behaviour would be costing him money since he'd
+be mining transactions with lower fees.
+
+For those reasons, Satoshi [disabled transaction replacement][disable replacement]
+in 2010. When asked later why he'd disabled that code, his response was:
+
+> Just to reduce surface area.  It wouldn't help with increasing tx fee. A tx
+> starts being valid at nLockTime.  It wouldn't work to have a tx that stops
+> being valid at a certain time; once a tx ever becomes valid, it must stay
+> valid permanently.
+
+Replacing a transaction does not invalidate the old transaction, so unless
+there is an incentive for the miner to use the new transaction, then just
+replacing an old transaction with one that has higher `nSequence` numbers
+is not incentive-compatible.
+
+## Replace-by-Fee
+
+Replace-by-fee is an effort to make transactions replaceable whilst avoiding
+the problems of exposing nodes to DoS vulnerabilities and misaligned
+incentives.  This is achieved by only allowing replacement if the replacement
+transaction has a higher fee than the replaced transaction. This prevents DoS
+attacks since every replacement transaction costs the attacker additional
+money, and ensures incentive alignment since the replacement transaction is
+financially advantageous to the miner.
+
+There are several [variants of replace-by-fee][rbf variants]. Although Bitcoin
+Core may implement *delayed RBF* at some point in the future (there is
+currently an [open PR][delayed rbf pr], which has support from several
+developers), currently almost all nodes on the network are thought to implement
+*opt-in RBF* as defined in [BIP 125][].
+
 
 ## BIP 125
 
-TODO
+BIP 125 is a specification for opt-in RBF written by Peter
+Todd in December 2015. It describes the conditions under which an unconfirmed
+transaction in a node's mempool will be replaced. BIP 125 is referred to as
+*opt-in* RBF since the node will only allow a transaction to be replaced if
+the sender has explicitly signaled that he wants the transaction to be
+replacable (or if the transaction is the descendant of an unconfirmed
+transaction signaling replaceability).
 
-### 5 conditions for RBF
+> WARNING: transaction replacement policies are outside the domain of consensus.
+> A transaction not being marked as replaceable offers no guarantees that it won't
+> be double-spent. Other nodes on the network may have different replacement
+> policies and miners are free to select whatever transactions they want in
+> blocks.
 
-TODO
+The spender signals that a transaction is replaceable by setting the `nSequence`
+number on any of its inputs to less than (0xffffffff - 1). A transaction is
+replaceable if it fulfils [five conditions][]. The BIP documents those condtions,
+but the implications of those conditions may not be immediately obvious. The next
+section describes some of those implications.
+
+[five conditions]: https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki#implementation-details
+
+### Implications of the conditions for BIP 125 RBF
+
+> One or more transactions currently in the mempool (original transactions)
+> will be replaced by a new transaction (replacement transaction) that spends
+> one or more of the same inputs if,
+
+- implication 1: RBF can be used to replace multiple transactions at the same
+  time. That could either be because the replacement transaction is directly
+  replacing two or more original tranasactions by spending their inputs, or
+  because the original transaction that is being replaced has descendants in
+  the mempool which will also need to be removed.
+- implication 2: Additional inputs can be added to the replacement transaction.
+  This is useful if a wallet needs to bump the fee on a transaction but there
+  is no change output to subtract the additional fee from.
+- implication 3: The replacement transaction does not need to include all of
+  the inputs from the original transaction. This can be extremely dangerous
+  since wallets can easily overspend this way. For example, if the original
+  transaction uses inputs A and B, a replacement transaction is sent with
+  inputs B and C, and then that replacement transaction is replaced with a
+  new replacement transaction using inputs C and D, the first transaction
+  could be rebroadcast by a third party at any point in the future, and both
+  would be valid! Wallets are advised to include all inputs from the original
+  transaction in the replacement transaction unless they have very reliable
+  tracking to make sure that they don't double-spend themselves.
+- implication 4: the `nSequence` of the inputs in the replacement transaction
+  are not considered, so a replaceable transaction could be replaced by a
+  non-replaceable transaction. If a wallet wants to be able to replace the
+  replacement transaction in future, it must signal opt-in RBF on one of the
+  inputs of the replacement transaction.
+
+> 1. The original transactions signal replaceability explicitly or through
+> inheritance as described in the above Summary section.
+
+- implication 1: It is not sufficient to look at an individual transaction
+  to determine whether it can be replaced under this policy. A transaction
+  may be replaceable because one of its unconfirmed ancestors signals
+  opt-in RBF.
+- implication 2: A transaction's replaceability may change! If it is does
+  not signal opt-in replaceability, but one of its ancestors does, then it
+  is replaceable. If the ancestor then gets confirmed, the descendant
+  transaction becomes non-replaceable.
+
+> 2. The replacement transaction may only include an unconfirmed input if that
+> input was included in one of the original transactions. (An unconfirmed
+> input spends an output from a currently-unconfirmed transaction.)
+
+Rationale: this is an anti-DoS measure to stop a spender creating a replacement
+transaction which has a higher feerate than the original transaction, but
+adds new ancestor dependencies so that the ancestor feerate for the transaction
+is lower.
+
+- implication 1: if a wallet runs out of confirmed transactions (ie all of its
+  coins are tied up in unconfirmed transactions), then it can't use the output
+  of some of those transactions as additional inputs to bump the fee on its other
+  transactions.
+
+> 3. The replacement transaction pays an absolute fee of at least the sum paid
+> by the original transactions.
+
+- implication 1: if outputs from the original transaction have been spent, then
+  the replacement transaction must exceed both the *feerate* and *total fee* of
+  the original transaction and its descendants. If the child transaction is large,
+  or there are many descendant transactions, then the total fee required to
+  replace the original transaction could be very large. This can make it
+  uneconomical to replace the original transaction and so is known as
+  *transaction pinning*.
+
+> 4. The replacement transaction must also pay for its own bandwidth at or
+> above the rate set by the node's minimum relay fee setting. For example,
+> if the minimum relay fee is 1 satoshi/byte and the replacement transaction
+> is 500 bytes total, then the replacement must pay a fee at least 500
+> satoshis higher than the sum of the originals.
+
+Rationale: this is an anti-DoS measure to prevent an adversary from repeatedly
+sending replacement transactions with miniscule feebumps and making the peer
+revalidate many versions of the same transaction.
+
+- implication 1: for transactions at low feerates, the proportional change
+  in feerate from bumping is large. A transaction with a feerate of
+  1 sat/byte needs to *double* its fee to satisfy this rule. For very
+  large transactions (eg large consolidations), then the amount of money
+  spent on fees could be high.
+
+  Although BIP 125 specifies that the transaction must increase the feerate
+  by the *minimum relay fee*, Bitcoin Core actually has a separate parameter
+  for the amount that the fee needs to be increased by, called the
+  *incrementalrelayfee*. By default this is set to the same value as the
+  *minimum relay fee* - 1 sat/byte.
+
+> 5. The number of original transactions to be replaced and their descendant
+> transactions which will be evicted from the mempool must not exceed a
+> total of 100 transactions.
+
+Rationale: this is an anti-DoS measure to prevent an adversary from sending
+replacement transactions that cause their peer to walk through many
+transactions in their mempool. This scan through the mempool needs to be done
+before calculating whether the replacement transaction has enough fee to
+replace the original transactions, so an adversary could cause the peer to walk
+the mempool without causing transactions to be replaced, which would be a free
+attack.
 
 ## User Experience Recommendations
 
@@ -179,7 +370,7 @@ Even wallets and services that do not themselves support creating opt-in RBF or
 replacement transactions should present a clear and accurate experience to
 their users when dealing with RBF transactions:
 
-- wallets that receive transactions that have opt-in RBF signalled may
+- wallets that receive transactions that have opt-in RBF signaled may
   display that the transaction is signaling opt-in RBF (with a tooltip
   or pop-up box giving additional information about RBF).
 - wallets must not double account replaced transactions (ie count a debit
@@ -252,7 +443,7 @@ For users to be able to bump a transaction using CPFP, two elements are required
 Before 2012 blocks were rarely full and so there was no fee market. The
 Bitcoin Core mining component was therefore not very optimized to maximize
 transaction fees when selecting transactions for block inclusion. Transactions were
-first ordered by 'prority' (the sum of the (value X coin age) for each
+first ordered by *prority* (the sum of the (value X coin age) for each
 transaction input, divided by the transaction size), with an [increasing
 feerate required][pre 0.7 tx selection] as the block filled up. Bitcoin Core
 [PR #1590][] changed the mining code to predominently sort transactions by
@@ -260,24 +451,15 @@ feerate, with some space reserved for transactions with a high priority score.
 [Version 0.7.0][], released in September 2012 was therefore the first Bitcoin
 Core release to primarily order transactions by feerate.
 
-[pre 0.7 tx selection]: https://github.com/bitcoin/bitcoin/blob/9b8eb4d6907502e9b1e74b62a850a11655d50ab5/main.h#L586
-[PR #1590]: https://github.com/bitcoin/bitcoin/pull/1590
-[Version 0.7.0]: https://bitcoin.org/en/release/v0.7.0
-
 At around the same time, Luke-jr started maintaining [a patch][CPFP patch]
 which took into account the transaction fee of children transaction when
 sorting transactions for inclusion in a block. This patch was used by at least
 some miners, but was never merged into Bitcoin Core due to a lack of testing
 and benchmarking, and concerns that it could open a DoS vector against miners.
 
-[CPFP patch]: https://github.com/bitcoin/bitcoin/pull/1240
-
 The Bitcoin Core mining code was updated [in 2016][CPFP PR] to better account
 for packages of transactions. The mining code will consider packages of up to
 25 transactions or 101vkB. This change was included in [V0.13][].
-
-[CPFP PR]: https://github.com/bitcoin/bitcoin/pull/7600
-[V0.13]: https://bitcoincore.org/en/releases/0.13.0/#mining-transaction-selection-child-pays-for-parent
 
 At the time or writing (November 2018), it is almost certain that a majority of
 miners are running Bitcoin Core V0.13 or later, or a derivative thereof.
@@ -339,7 +521,7 @@ packages to users:
   descendant feerate of the transaction alongside its feerate, to allow the
   user to more accurately predict the package's chance of inclusion in future
   blocks.
-- block explorers may display transactions as 'malleable' if any of their
+- block explorers may display transactions as *malleable* if any of their
   inputs are non-segwit. Malleable transactions may not be safe to include in
   chains of unconfirmed transactions, since malleating the signature invalidates
   any descendant transactions.
@@ -388,3 +570,18 @@ miner incentive-compatible - a miner who is trying to maximize his revenue will
 accept both RBF’ed transactions and CPFP packages. Individual nodes’ mempools
 (which should be a node’s best guess for what will be included in the next
 blocks) should therefore also accept RBF’ed transactions and CPFP packages.
+
+[CPFP PR]: https://github.com/bitcoin/bitcoin/pull/7600
+[V0.13]: https://bitcoincore.org/en/releases/0.13.0/#mining-transaction-selection-child-pays-for-parent
+[CPFP patch]: https://github.com/bitcoin/bitcoin/pull/1240
+[full_replacement]: https://github.com/trottier/original-bitcoin/blob/master/src/main.cpp#L434
+[whitepaper]: https://nakamotoinstitute.org/bitcoin/
+[bct q]: https://bitcointalk.org/index.php?topic=2181.msg28699#msg28699
+[bct a]: https://bitcointalk.org/index.php?topic=2181.msg28729#msg28729
+[disable replacement]: https://github.com/bitcoin/bitcoin/commit/05454818dc7ed92f577a1a1ef6798049f17a52e7#diff-118fcbaaba162ba17933c7893247df3aR522
+[rbf variants]: https://en.bitcoin.it/wiki/Replace_by_fee#Variants
+[BIP 125]: https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki
+[delayed rbf pr]: https://github.com/bitcoin/bitcoin/pull/10823
+[pre 0.7 tx selection]: https://github.com/bitcoin/bitcoin/blob/9b8eb4d6907502e9b1e74b62a850a11655d50ab5/main.h#L586
+[PR #1590]: https://github.com/bitcoin/bitcoin/pull/1590
+[Version 0.7.0]: https://bitcoin.org/en/release/v0.7.0
