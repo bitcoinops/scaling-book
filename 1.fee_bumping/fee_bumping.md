@@ -36,7 +36,7 @@ confirmed. This could happen for many reasons: the wallet or user has
 underestimated how much fee is required, the user has tried to save fees by
 bidding at the low end of the fee estimation range, or the required fee rate
 has just spiked unexpectedly after the transaction was broadcast. Whatever the
-reason, the user finds themself with a transaction that is ‘stranded’ in the
+reason, the user finds himself with a transaction that is ‘stranded’ in the
 mempool with a low fee rate, and a very low chance of being confirmed in future
 blocks.
 
@@ -45,10 +45,10 @@ make low bids on transaction fees. If there is no way to get a transaction
 unstuck after it’s been broadcast, then users are forced to bid conservatively
 (high) to avoid the risk of having their transaction get stuck.
 
-We therefore need a method to bump up the fee on an already broadcast
+We, therefore, need a method to bump up the fee on an already broadcast
 transaction for a couple of reasons:
 
-1. To allow users to ‘unstick’ an already broadcast transction.
+1. To allow users to ‘unstick’ an already broadcast transaction.
 1. To give users the leeway to bid low on transaction fee-rate, with the
    option to later bump the fee up.
 
@@ -60,7 +60,7 @@ mempool: Replace-by-fee (RBF) and Child Pays for Parent (CPFP):
 ##### Replace By Fee (RBF)
 
 The user constructs and signs a replacement transaction which spends one or
-more of the same inputs as the stuck transaction but pays additional fee
+more of the same inputs as the stuck transaction but pays an additional fee
 (usually by reducing the amount of bitcoin for the change output and leaving
 the extra value as additional fee). If the replacement transaction attaches
 enough fee, then miners will be incentivized to include it in a block.
@@ -78,10 +78,10 @@ When selecting transactions for inclusion in a block, miners will consider
 entire package of ancestors and descendants. The miner is incentivized to do
 this to maximize the total fee yield from the block.
 
-This feature could rightly be called Descendants-Pay-For-Ancestors since the
-a rational miner will try to maximize their fee by considering packages of
+This feature could rightly be called Descendants-Pay-For-Ancestors since a
+rational miner will try to maximize their fee by considering packages of
 transactions greater than 2 deep. For example, the Bitcoin Core mining code
-considers packages of up to 25 transactions in any length of chain. 
+considers packages of up to 25 transactions in any length of chain.
 
 ## User experience considerations
 
@@ -98,7 +98,7 @@ wallet or service. Bitcoin services need to consider issues such as:
 - Some Bitcoin wallets and services treat transactions that signal
   opt-in RBF differently from those that don’t (for example not showing RBF
   transactions in a user’s balance). This can be confusing for users sending from
-  wallets that signal opt-in RBF. 
+  wallets that signal opt-in RBF.
 - Fee bumping with RBF creates a new transaction with a new txid. This can be
   confusing for users if they don’t understand that a payment’s txid/vout index
   will change when the transaction is RBF’ed.
@@ -127,7 +127,7 @@ Bitcoin blockchain, such as exchanges or custodians:
   entities sending a lot of transactions, the savings in fee can be significant.
 - Using CPFP to bump the fee can increase the total fee significantly, since
   the total fee has to pay for both the child and parent transactions - whereas
-  an RBF transaction is replaced entirely and so doesn’t need to provide fee to
+  an RBF transaction is replaced entirely and so doesn’t need to provide a fee to
   cover an extra transaction. For entities sending a lot of transactions, the
   additional fees can be significant.
 - Services that are very frequent spenders and broadcast transactions to the
@@ -179,7 +179,7 @@ Even wallets and services that do not themselves support creating opt-in RBF or
 replacement transactions should present a clear and accurate experience to
 their users when dealing with RBF transactions:
 
-- wallets that receive transactions that have opt-in RBF signalled may
+- wallets that receive transactions that have opt-in RBF signaled may
   display that the transaction is signaling opt-in RBF (with a tooltip
   or pop-up box giving additional information about RBF).
 - wallets must not double account replaced transactions (ie count a debit
@@ -213,7 +213,7 @@ increase the combined feerate across the parent and child transactions.
 
 When constructing a new block, miners are incentivized to fill the 1vMB with
 the set of transactions that maximize the transaction fees. If all unconfirmed
-transactions were independant, this would be a very straightforward operation -
+transactions were independent, this would be a very straightforward operation -
 the miner would select the transaction with the highest feerate and add it to
 the candidate block. She'd then take the transaction with the next highest
 feerate and add it to the block. She'd continue to do this until the block was
@@ -221,7 +221,7 @@ full. This trivially maximizes her profit from the block (with a little
 complication around the final few bytes of the block to ensure that she'd
 maximally filled the block).
 
-However, unconfirmed transactions _aren't_ independant. It is possible to have
+However, unconfirmed transactions _aren't_ independent. It is possible to have
 chains of unconfirmed transactions by spending the output from a transaction
 before it is included in a block. For example, if tx A has two outputs a1 and
 a2, transaction B could use one of those outputs as an input before A has
@@ -233,7 +233,7 @@ If the miner considered transactions independently when constructing her block,
 she may forego transactions with very high fees if they depended on
 transactions with very low fees (or worse, she may construct an invalid block
 with a transaction that depends on an unincluded transaction). To maximize her
-profit, the miner should therefore consider transactions in _packages_ (sets of
+profit, the miner should, therefore, consider transactions in _packages_ (sets of
 transactions with dependencies on each other) when constructing a new block.
 
 Wallets can take advantage of this rational behavior by miners to incentivize
@@ -252,12 +252,12 @@ For users to be able to bump a transaction using CPFP, two elements are required
 Before 2012 blocks were rarely full and so there was no fee market. The
 Bitcoin Core mining component was therefore not very optimized to maximize
 transaction fees when selecting transactions for block inclusion. Transactions were
-first ordered by 'prority' (the sum of the (value X coin age) for each
+first ordered by 'priority' (the sum of the (value X coin age) for each
 transaction input, divided by the transaction size), with an [increasing
 feerate required][pre 0.7 tx selection] as the block filled up. Bitcoin Core
-[PR #1590][] changed the mining code to predominently sort transactions by
+[PR #1590][] changed the mining code to predominantly sort transactions by
 feerate, with some space reserved for transactions with a high priority score.
-[Version 0.7.0][], released in September 2012 was therefore the first Bitcoin
+[Version 0.7.0][], released in September 2012 was, therefore, the first Bitcoin
 Core release to primarily order transactions by feerate.
 
 [pre 0.7 tx selection]: https://github.com/bitcoin/bitcoin/blob/9b8eb4d6907502e9b1e74b62a850a11655d50ab5/main.h#L586
@@ -321,11 +321,11 @@ their CPFP system:
   do the same process when creating a 3rd or 4th generation transaction to pay
   for its ancestors.
 - the Bitcoin Core mining algorithm will only consider packages of up to 25
-  transactions or 101vkB. HBE therefore needs to make sure they're not creating
+  transactions or 101vkB. HBE, therefore, needs to make sure they're not creating
   chains of transactions larger than that.
 
 Overall, HBE is very happy with their new CPFP implementation. Support tickets
-are down, and customers are usually unaware that that their withdrawals are
+are down, and customers are usually unaware that their withdrawals are
 being fee bumped using CPFP, since the transaction id and output index of their
 withdrawal does not change.
 
@@ -382,8 +382,8 @@ transactions.
 ## Consensus, policy and incentive compatibility
 
 Both solutions discussed in this article are related to network node and miner
-behavior before a transaction is included in a block. That behavior is
-therefore a question of policy rather than consensus. Both solutions are also
+behavior before a transaction is included in a block. That behavior is,
+therefore, a question of policy rather than consensus. Both solutions are also
 miner incentive-compatible - a miner who is trying to maximize his revenue will
 accept both RBF’ed transactions and CPFP packages. Individual nodes’ mempools
 (which should be a node’s best guess for what will be included in the next
