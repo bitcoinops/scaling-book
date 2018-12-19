@@ -45,7 +45,7 @@ make low bids on transaction fees. If there is no way to get a transaction
 unstuck after it’s been broadcast, then users are forced to bid conservatively
 (high) to avoid the risk of having their transaction get stuck.
 
-We, therefore, need a method to bump up the fee on an already broadcast
+We therefore need a method to bump up the fee on an already broadcast
 transaction for a couple of reasons:
 
 1. To allow users to ‘unstick’ an already broadcast transaction.
@@ -60,7 +60,7 @@ mempool: Replace-by-fee (RBF) and Child Pays for Parent (CPFP):
 ##### Replace By Fee (RBF)
 
 The user constructs and signs a replacement transaction which spends one or
-more of the same inputs as the stuck transaction but pays an additional fee
+more of the same inputs as the stuck transaction but pays additional fee
 (usually by reducing the amount of bitcoin for the change output and leaving
 the extra value as additional fee). If the replacement transaction attaches
 enough fee, then miners will be incentivized to include it in a block.
@@ -127,7 +127,7 @@ Bitcoin blockchain, such as exchanges or custodians:
   entities sending a lot of transactions, the savings in fee can be significant.
 - Using CPFP to bump the fee can increase the total fee significantly, since
   the total fee has to pay for both the child and parent transactions - whereas
-  an RBF transaction is replaced entirely and so doesn’t need to provide a fee to
+  an RBF transaction is replaced entirely and so doesn’t need to provide fee to
   cover an extra transaction. For entities sending a lot of transactions, the
   additional fees can be significant.
 - Services that are very frequent spenders and broadcast transactions to the
@@ -233,7 +233,7 @@ If the miner considered transactions independently when constructing her block,
 she may forego transactions with very high fees if they depended on
 transactions with very low fees (or worse, she may construct an invalid block
 with a transaction that depends on an unincluded transaction). To maximize her
-profit, the miner should, therefore, consider transactions in _packages_ (sets of
+profit, the miner should therefore consider transactions in _packages_ (sets of
 transactions with dependencies on each other) when constructing a new block.
 
 Wallets can take advantage of this rational behavior by miners to incentivize
@@ -257,7 +257,7 @@ transaction input, divided by the transaction size), with an [increasing
 feerate required][pre 0.7 tx selection] as the block filled up. Bitcoin Core
 [PR #1590][] changed the mining code to predominantly sort transactions by
 feerate, with some space reserved for transactions with a high priority score.
-[Version 0.7.0][], released in September 2012 was, therefore, the first Bitcoin
+[Version 0.7.0][], released in September 2012 was therefore the first Bitcoin
 Core release to primarily order transactions by feerate.
 
 [pre 0.7 tx selection]: https://github.com/bitcoin/bitcoin/blob/9b8eb4d6907502e9b1e74b62a850a11655d50ab5/main.h#L586
@@ -321,7 +321,7 @@ their CPFP system:
   do the same process when creating a 3rd or 4th generation transaction to pay
   for its ancestors.
 - the Bitcoin Core mining algorithm will only consider packages of up to 25
-  transactions or 101vkB. HBE, therefore, needs to make sure they're not creating
+  transactions or 101vkB. HBE therefore needs to make sure they're not creating
   chains of transactions larger than that.
 
 Overall, HBE is very happy with their new CPFP implementation. Support tickets
@@ -382,8 +382,8 @@ transactions.
 ## Consensus, policy and incentive compatibility
 
 Both solutions discussed in this article are related to network node and miner
-behavior before a transaction is included in a block. That behavior is,
-therefore, a question of policy rather than consensus. Both solutions are also
+behavior before a transaction is included in a block. That behavior is
+therefore a question of policy rather than consensus. Both solutions are also
 miner incentive-compatible - a miner who is trying to maximize his revenue will
 accept both RBF’ed transactions and CPFP packages. Individual nodes’ mempools
 (which should be a node’s best guess for what will be included in the next
