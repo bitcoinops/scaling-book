@@ -15,7 +15,7 @@ appear to achieve this definition of scalability. Since the Bitcoin network
 makes use of a peer-to-peer gossip protocol in which every node validates every
 transaction, the global amount of computation, bandwidth and storage required
 scales (in at least some senses) quadratically with the number of users. n
-users validating transactions from n users results in the order of n^2
+users validating transactions from n users results in the order of n<sup>2</sup>
 validations. Even if we radically reduce the security by requiring new users to
 be 'light clients' and not validate the full state of the system, adding new
 users by increasing the transaction throughput is still at best linear in total
@@ -49,7 +49,7 @@ The utility that the Bitcoin blockchain delivers is _payments_, since that’s
 what users want to use the Bitcoin system for. To confuse the logical concept
 of a Bitcoin _transaction_ with the social concept of a payment is a
 conspicuous (and sadly very common) error. A _payment_ is a transfer of value
-from one party to another. In Bitcoin, a _transaction_is a transformation on
+from one party to another. In Bitcoin, a _transaction_ is a transformation on
 the global set of unspent transaction outputs, consuming some UTXOs and
 producing some new UTXOs.  _Transaction_ can also refer to a data structure
 that is passed over the P2P network that both describes the transformation on
