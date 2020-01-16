@@ -1,0 +1,107 @@
+digraph cons_vs_changeless {
+
+size="8,4"
+rankdir=TB
+ranksep = 0.3;
+
+graph [ fontsize = 20 ];
+node [ shape = "box", fontsize = 20 ];
+
+{
+  // Spend-to-selfs
+  node [ style = "filled", fillcolor = "black", label = "" ]
+  ac1;
+  asc1;
+  asc2;
+  asc3;
+  asc4;
+  asc5;
+
+  sse;
+}
+
+{
+  // Spend-to-others
+  node [ style = "filled", fillcolor = "white", label = "" ]
+  soe;
+
+  bs1;
+  bs2;
+  bs3;
+  bs4;
+  bs5;
+
+  as1;
+  as2;
+  as3;
+  as4;
+  as5;
+}
+
+{
+  // Received payments
+  node [ shape = "circle", label = "" ];
+
+  b1;
+  b2;
+  b3;
+  b4;
+  b5;
+  b6;
+  b7;
+  b8;
+  b9;
+  b10;
+
+  a1;
+  a2;
+  a3;
+  a4;
+  a5;
+  a6;
+  a7;
+  a8;
+  a9;
+  a10;
+
+  lre;
+
+}
+
+subgraph cluster_alice {
+  label = "Alice's ten UTXOs consolidated, followed by\nfive transactions each with one input"
+
+  a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 -> ac1;
+
+  ac1 -> as1, asc1;
+  asc1 -> as2, asc2;
+  asc2 -> as3, asc3;
+  asc3 -> as4, asc4;
+  asc4 -> as5, asc5;
+}
+
+subgraph cluster_bob {
+  label = "Bob's five changeless transactions\neach with two inputs"
+
+  b1, b2 -> bs1;
+  b3, b4 -> bs2;
+  b5, b6 -> bs3;
+  b7, b8 -> bs4;
+  b9, b10 -> bs5;
+}
+
+foo [ style = "invis" ];
+lrl [ shape = "none", label = "Received Payment" ];
+ssl [ shape = "none", label = "Spent to Self\n(consolidation or change)" ];
+sol [ shape = "none", label = "Spent Payment" ];
+
+{
+  edge [ style = "invis" ];
+
+  bs3 -> foo -> lre, lrl;
+  lrl -> ssl; lre -> sse;
+  ssl -> sol; sse -> soe;
+}
+
+
+}
