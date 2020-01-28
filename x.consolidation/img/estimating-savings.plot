@@ -64,10 +64,10 @@ savings(inputs, consolidation_percentage) = avg_p2wpkh_savings_after_cons(inputs
 unset label 3
 set key bottom right horizontal
 plot \
-  savings(x, (1./50))*100 ls 4 title "2% normal feerate", \
-  savings(x, (1./10))*100 ls 3 title "10% normal feerate", \
-  savings(x, (1./4))*100 ls 5 title "25% normal feerate", \
-  savings(x, (1./2))*100 ls 6 title "50% normal feerate"
+  savings(x, (1./50))*100 ls 4 title "2% of fast feerate", \
+  savings(x, (1./10))*100 ls 3 title "10% of fast feerate", \
+  savings(x, (1./4))*100 ls 5 title "25% of fast feerate", \
+  savings(x, (1./2))*100 ls 6 title "50% of fast feerate"
 
 ###################################
 ## Savings for different scripts ##

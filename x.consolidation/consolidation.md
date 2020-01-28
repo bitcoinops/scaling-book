@@ -6,6 +6,11 @@ UTXO.  This lowers the number of UTXOs you control while keeping your
 balance roughly the same, increasing the chance that you'll be able to
 create smaller and more affordable transactions at a later time when
 you need to pay a higher feerate in order to obtain a fast confirmation.
+As described in the following sections, most services that use
+consolidation will save 20% to 40% on their overall transaction fees
+without changing their payment user experience at all.  Outlier services
+that receive significantly more incoming payments than they send
+outgoing payments may save up to 80% through effective consolidation.
 
 ## A consolidation example
 
@@ -13,7 +18,7 @@ Imagine a transaction as a rectangle whose height is its feerate, whose
 length is its size (block weight), and whose area is its total fee
 (feerate times size).  For example, illustrated below is a simple
 transaction that spends from one P2WPKH UTXO (input) to two P2WPKH
-outputs---one output to a client and one as change back to the spender.
+outputs---one output to a receiver and one as change back to the spender.
 
 ![Example of a 1-input, 2-output transaction](img/consolidation-example-1in2out.png)
 
@@ -29,7 +34,7 @@ Although that seemed like a minor change, it almost doubled the size and
 cost of our transaction.  This is where consolidation can be useful.  By
 preparing ahead, we can can *consolidate* the three UTXOs of our large
 transaction into a single UTXO using a low-feerate transaction spent from
-ourself to ourself.  Then we can pay the client using a single UTXO in a
+ourself to ourself.  Then we can pay the receiver using a single UTXO in a
 high-feerate transaction that has an identical shape to the first
 example transaction above:
 
@@ -40,11 +45,14 @@ Comparing the total costs, we find that the two transaction version is
 UTXOs.  This is possible even though the two-transaction version uses
 more total block space.
 
-If the consolidation transaction confirms before you send the second
-transaction paying the client, then the client won't experience any
-additional delay compared to the single-transaction variations, and so
-you'll have saved a modest amount of money without changing the receiver
-experience at all.
+With consolidation, there's also no change to the user experience for
+the receiver.  As long as you ensure your consolidation transactions
+confirm before you try to spend their outputs, the payment to the
+receiver will confirm at the same time whether or not you previously
+consolidated your UTXOs (ignoring some rare corner cases).  <!-- corner
+case: a post-consolidated single-input tx may sometimes confirm faster
+than a non-consolidated multi-input tx because the smaller tx fits into
+the lowest-feerate part of a block but the larger tx doesn't -->
 
 ## Average UTXOs spent
 
@@ -103,8 +111,8 @@ Let's plot just the savings in percentage terms:
 ![Savings from consolidation](img/estimating-savings-p2wpkh-savings.png)
 
 Obviously the actual amount we save is going to depend on the ratio
-between the low feerate used for consolidations and the higher feerate
-used to pay clients.  Using data provided in the appendix of this
+between the low/slow feerate used for consolidations and the high/fast feerate
+used to pay receiver.  Using data provided in the appendix of this
 chapter, the following ratios are commonly achievable as of this
 writing:
 
@@ -128,6 +136,8 @@ and slow (low) feerates is persistently small.
 
 ## UTXO pools
 
+FIXME: move to after cold wallet section
+
 The above examples assume that you'll go from having *n* UTXOs to having
 just one UTXO, but that can create problems if you ever need to
 broadcast a transaction while another one of your transactions is still
@@ -144,7 +154,9 @@ use patterns reserved for future soft forks -->
 An unconfirmed UTXO is the output of a transaction which is still in the
 mempool (i.e. has not yet been confirmed).  To prevent DoS attacks
 against node mempools, nodes place additional restrictions on
-transactions that use unconfirmed UTXOs.  That means you aren't
+transactions that use unconfirmed UTXOs---such as not allowing them to
+have more than 25 ancestors or for the size of all related transaction
+in the mempool to exceed 100,000 vbytes.  That means you aren't
 guaranteed to be able to spend unconfirmed UTXOs at an arbitrary time.
 For example, a wallet may not be able to propagate the second
 transaction illustrated below (tx1) until after the the first
@@ -156,9 +168,9 @@ second-child CPFP carve-out -->
 
                tx0                    tx1
                ---                    ---
-    Wallet UTXO → Client Alice UTXO
-                  Client Bob UTXO
-                  Wallet UTXO (change) → Client Charlie UTXO
+    Wallet UTXO → Receiver Alice UTXO
+                  Receiver Bob UTXO
+                  Wallet UTXO (change) → Receiver Charlie UTXO
                                          Wallet UTXO (change)
 
 Because many users expect to receive notification of new unconfirmed
@@ -186,7 +198,7 @@ inefficiency.  If it happens frequently, you have several options:
    keeping the number of outputs the same and increasing the value of
    each output, overall increasing the amount of money you have in the
    pool.  Note that this also increases the amount of money you'll lose
-   due to theft or accident involving your hot wallet.
+   due to theft or accident involving your wallet.
 
 2. Increase the average value of the outputs in your UTXO pool by
    keeping the total amount the same but decreasing the number of
@@ -202,11 +214,11 @@ inefficiency.  If it happens frequently, you have several options:
    amounts so you have as many different combinations of amounts as
    possible.
 
-## Optimum consolidation size
+## Optimizing UTXO consolidations
 
 To consolidate UTXOs, you need to include more data than just the UTXOs
 in a transaction---you also have to include an output that pays the
-funds back to yourself plus some transaction boilerplate (version
+funds back to yourself plus some transaction overhead (version
 number, nLockTime, etc...).  The more UTXOs you consolidate in a single
 transaction, the better the fixed costs of the transaction are divided
 among UTXOs, with the cost per UTXO asymptotically approaching the
@@ -261,7 +273,7 @@ When you receive a payment to a new address that has never been used
 before, analysts looking at block chain history won't know who owns that
 UTXO.  But if you consolidate that UTXO with other UTXOs that they've
 identified as belonging to you, the analysts can make the reasonable
-assumption that all the consolidated funds belong to you.  
+assumption that all the consolidated funds belong to you.
 
     1 (Alice) \
                \
@@ -276,7 +288,8 @@ users who have previously used techniques such as coinjoin to conflate
 the ownership history of their UTXOs with other UTXOs.
 
 It may be possible to perform a limited amount of consolidation during a
-coinjoin, e.g. as implemented in Joinmarket or Wasabi.  Additionally,
+coinjoin, e.g. as implemented in Joinmarket or Wasabi.  Consolidation
+even happens automatically using a [payjoin][].  Additionally,
 ideas for future protocol development such as [channel factories][] or
 [joinpools][] may make it more common for multiple UTXOs owned by
 multiple people to be merged into a single UTXO and then used for
@@ -286,7 +299,16 @@ resulting from a consolidation.
 ## Choosing UTXOs to consolidate
 
 Your goal is to fulfill as many payments as possible using a single
-UTXO, so you should consolidate your lowest-value UTXOs first.  Additionally,
+UTXO, so you should consolidate your lowest-value UTXOs first, excluding
+any UTXOs that aren't economical to spend.  Uneconomical UTXOs are those
+that cost more to spend than the value they store.  For example, imagine
+a P2PKH UTXO that holds 0.00001000 BTC; it costs about 148 vbytes to spend
+a P2PKH UTXO, so if you multiply 148 by your per-vbyte feerate and get a
+value over 0.00001000 BTC, you want to skip spending that UTXO at this
+time.  You can re-evaluate spending it at a later time when feerates
+have decreased.
+
+Additionally,
 you may be able to reduce your amount of privacy loss by ensuring that
 any time you select a UTXO received to a particular address, you also
 select all other UTXOs received to the same address.  For example,
@@ -307,7 +329,7 @@ Finally, you select `bcdefa:0` because it's the next lowest value UTXO.
 
 For more information about selecting related UTXOs,
 [read][avoidpartialspends] about the `-avoidpartialspend` configuration
-option in Bitcoin Core. 
+option in Bitcoin Core.
 
 ## Consolidation versus competing techniques
 
@@ -364,7 +386,7 @@ feerate:
 Alice's Consolidation transaction with ten inputs and one output is
 679.25 vbytes; her subsequent five payment transactions each with one
 input and two outputs are 136.50 vbytes.  Bob's five changeless
-transactions, each with two inputs and one output, are 169.25 vbytes in size.  
+transactions, each with two inputs and one output, are 169.25 vbytes in size.
 If Alice and Bob both send their payment transactions at the same rate,
 we can use some simple algebra to calculate what percentage of that
 feerate Bob needs to use for his consolidation transaction in order to
@@ -387,7 +409,7 @@ used a correspondingly-higher feerate for her consolidation transaction.
 That said, a clear advantage of changeless transactions over
 consolidation transactions is that they allow the spender to save block
 space and achieve modest fee savings while preserving their privacy
-against the problems described in the *Consolidation Privacy* section
+against the problems described in the *Privacy Concerns* section
 above.  For most individual spenders or even small businesses who only
 spend infrequently, that privacy advantage is more important to them than
 the fee savings from consolidation.
@@ -397,7 +419,10 @@ the fee savings from consolidation.
 [Predictive UTXO management][] is a service provided by BitGo that
 "reduces the overall cost by minimizing transaction sizes at high fee
 rates, while automatically sweeping up and processing many small
-fragments of coins when fees are low."  The exact implementation of 
+fragments of coins when fees are low."  In other words, you
+automatically perform consolidations as part of your regular spending
+transactions when feerates are low, but stop consolidating when feerates
+are high.  The exact implementation of
 this technique is proprietary, but it's probably similar to [organic
 UTXO consolidation][] as described by Dmitry Petukhov.
 
@@ -416,7 +441,7 @@ want their spending transactions to confirm within the next several blocks.
 That's because saving a few dozen bytes in block chain space using
 predictive/organic transactions doesn't match being able to save a large
 percentage of UTXO spending costs by spending UTXOs at a lower feerate.
-This was actually quantified in a earlier illustration: 
+This was actually quantified in a earlier illustration:
 
 ![Savings by consolidation feerate](img/estimating-savings-by-feerate.png)
 
@@ -437,7 +462,7 @@ on maximizing fee savings will probably want to focus on UTXO consolidation.
 
 ## Fee bumping
 
-The maximize savings, consolidation transactions should be sent at the
+To maximize savings, consolidation transactions should be sent at the
 lowest feerate that you believe will allow the transactions to confirm
 before they are needed.  For example, if you can wait a week for a
 transaction to confirm, you should use your fee estimator's target
@@ -464,7 +489,7 @@ options:
   consolidation unless you were planning to transfer funds to your hot
   wallet anyway.
 
-## Conclusion 
+## Conclusion
 
 For organizations that both frequently receive and frequently send
 payments, consolidation is one of the most efficient ways to save money.
@@ -510,8 +535,9 @@ different confirmation targets.
 [Presentation: unspent management and coin selection]: https://www.youtube.com/watch?v=hrlNN3BSB6w&feature=emb_logo
 [Field report: consolidation of 4 million UTXOs at xapo]: https://bitcoinops.org/en/xapo-utxo-consolidation/
 [payment batching]: https://github.com/bitcoinops/scaling-book/blob/master/x.payment_batching/payment_batching.md
-[channel factories]: http://devbcop/en/topics/channel-factories/
+[channel factories]: https://bitcoinops.org/en/topics/channel-factories/
 [joinpools]: https://freenode.irclog.whitequark.org/bitcoin-wizards/2019-05-21#24639483;
 [BIP125]: https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki
 [predictive utxo management]: https://www.businesswire.com/news/home/20180726005483/en/BitGo-Introduces-Predictive-UTXO-Management-Delivering-30
-[organic utxo consolidation]: https://www.reddit.com/r/Bitcoin/comments/9kxn01/organic_utxo_consolidation_in_the_course_of/
+[organic utxo consolidation]: https://medium.com/simplexum/on-predictive-utxo-management-974be49506ca
+[payjoin]: https://bitcoinops.org/en/topics/payjoin/
