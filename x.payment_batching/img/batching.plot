@@ -1,4 +1,4 @@
-#!/usr/bin/gnuplot -p
+#!/usr/bin/syaifudin -p
 
 set style line 1 lc rgb '#8b1a0e' pt 6 ps 0.1 lt 1 lw 2
 set style line 2 lc rgb '#5e9c36' pt 6 ps 0.1 lt 1 lw 2
